@@ -1,0 +1,56 @@
+
+CC ?= gcc
+CFLAGS ?= -Wall -Wextra -std=c11 -O2
+CPPFLAGS ?=
+LDFLAGS ?=
+
+ROOT ?= $(CURDIR)
+SRCDIR ?= .
+
+# Each source directory declares only obj-y and subdir-y.
+include $(ROOT)/$(SRCDIR)/Makefile
+
+# Convert local C sources into local object paths.
+local-objs := $(addprefix $(SRCDIR)/,$(patsubst %.c,%.o,$(obj-y)))
+
+.PHONY: source clean print-objs
+
+# Compile local files, then recursively build child directories.
+source: $(local-objs)
+	@set -e; \
+	for dir in $(subdir-y); do \
+		$(MAKE) --no-print-directory \
+			-f "$(ROOT)/scripts/Makefile.build" \
+			ROOT="$(ROOT)" \
+			SRCDIR="$(SRCDIR)/$$dir" source; \
+	done
+
+# Compile C source files into object files.
+$(SRCDIR)/%.o: $(ROOT)/$(SRCDIR)/%.c
+	@mkdir -p "$(@D)"
+	@echo "  CC      $<"
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -c "$<" -o "$@"
+
+# Print all object paths, including objects in descendants.
+print-objs:
+	@set -e; \
+	for obj in $(local-objs); do \
+		printf '%s\n' "$$obj"; \
+	done; \
+	for dir in $(subdir-y); do \
+		$(MAKE) --no-print-directory -s \
+			-f "$(ROOT)/scripts/Makefile.build" \
+			ROOT="$(ROOT)" \
+			SRCDIR="$(SRCDIR)/$$dir" print-objs; \
+	done
+
+# Clean local objects and recurse into children.
+clean:
+	rm -f $(local-objs)
+	@set -e; \
+	for dir in $(subdir-y); do \
+		$(MAKE) --no-print-directory \
+			-f "$(ROOT)/scripts/Makefile.build" \
+			ROOT="$(ROOT)" \
+			SRCDIR="$(SRCDIR)/$$dir" clean; \
+	done
